@@ -1,7 +1,10 @@
 package hectorP.API.controller;
 
+import hectorP.API.payload.AuthResponse;
 import hectorP.API.payload.UserDTO;
+import hectorP.API.util.JwtTokenUtil;
 import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationContext;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -16,7 +19,8 @@ import org.springframework.web.bind.annotation.*;
 @RestController
 @RequestMapping("/users")
 public class UserController {
-
+    @Autowired
+    JwtTokenUtil jwtTokenUtil;
     private final InMemoryUserDetailsManager userDetailsService;
     private final PasswordEncoder passwordEncoder;
     public UserController(ApplicationContext context) {
@@ -24,8 +28,17 @@ public class UserController {
         this.passwordEncoder = (PasswordEncoder) context.getBean("passwordEncoder");
     }
     @GetMapping
-    public ResponseEntity<String> loginUser(HttpServletRequest request) {
-        return new ResponseEntity<>((String)"Your are log in ", HttpStatus.OK);
+    public ResponseEntity<?> loginUser(@RequestBody UserDTO userData) {
+        if (!userDetailsService.userExists(userData.getUsername())) {
+            return new ResponseEntity<>("User not found", HttpStatus.NOT_FOUND);
+        }
+        UserDetails user = userDetailsService.loadUserByUsername(userData.getUsername());
+        if (!passwordEncoder.matches(userData.getPassword(), user.getPassword())) {
+            return new ResponseEntity<>("Incorrect Password", HttpStatus.UNAUTHORIZED);
+        }
+        String accessToken = jwtTokenUtil.generateAccessToken(userDetailsService.loadUserByUsername(userData.getUsername()));
+        AuthResponse response = new AuthResponse(userData.getUsername(), accessToken);
+        return new ResponseEntity<>(response, HttpStatus.OK);
     }
 
     @PostMapping
